@@ -117,10 +117,7 @@ class _MyHomePageState extends State<MyHomePage> {
     };
 
     MediaStream stream = await navigator.mediaDevices.getUserMedia(constraints);
-
     _localRenderer.srcObject = stream;
-    // _localRenderer.mirror = true;
-
     return stream;
   }
 
@@ -130,12 +127,6 @@ class _MyHomePageState extends State<MyHomePage> {
     var session = parse(description.sdp.toString());
     print(json.encode(session));
     _offer = true;
-
-    // print(json.encode({
-    //       'sdp': description.sdp.toString(),
-    //       'type': description.type.toString(),
-    //     }));
-
     _peerConnection!.setLocalDescription(description);
   }
 
@@ -145,11 +136,6 @@ class _MyHomePageState extends State<MyHomePage> {
 
     var session = parse(description.sdp.toString());
     print(json.encode(session));
-    // print(json.encode({
-    //       'sdp': description.sdp.toString(),
-    //       'type': description.type.toString(),
-    //     }));
-
     _peerConnection!.setLocalDescription(description);
   }
 
@@ -158,9 +144,6 @@ class _MyHomePageState extends State<MyHomePage> {
     dynamic session = await jsonDecode('$jsonString');
 
     String sdp = write(session, null);
-
-    // RTCSessionDescription description =
-    //     new RTCSessionDescription(session['sdp'], session['type']);
     RTCSessionDescription description =
         new RTCSessionDescription(sdp, _offer ? 'answer' : 'offer');
     print(description.toMap());
@@ -199,15 +182,6 @@ class _MyHomePageState extends State<MyHomePage> {
   Row offerAndAnswerButtons() =>
       Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: <Widget>[
         new ElevatedButton(
-          // onPressed: () {
-          //   return showDialog(
-          //       context: context,
-          //       builder: (context) {
-          //         return AlertDialog(
-          //           content: Text(sdpController.text),
-          //         );
-          //       });
-          // },
           onPressed: _createOffer,
           child: Text('Offer'),
           // color: Colors.amber,
@@ -258,20 +232,6 @@ class _MyHomePageState extends State<MyHomePage> {
             sdpCandidatesTF(),
             sdpCandidateButtons(),
           ],
-        ))
-            // new Stack(
-            //   children: [
-            //     new Positioned(
-            //       top: 0.0,
-            //       right: 0.0,
-            //       left: 0.0,
-            //       bottom: 0.0,
-            //       child: new Container(
-            //         child: new RTCVideoView(_localRenderer)
-            //       )
-            //     )
-            //   ],
-            // ),
-            ));
+        ))));
   }
 }
