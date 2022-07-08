@@ -4,8 +4,15 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:sdp_transform/sdp_transform.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:webrtc/signaling.dart';
+import 'firebase_options.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+     options: DefaultFirebaseOptions.currentPlatform,
+  ) ;
   runApp(MyApp());
 }
 
@@ -18,220 +25,127 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: MyHomePage(title: 'WebRTC Flutter'),
+      home: MyHomePage(),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
-  MyHomePage({Key? key, required this.title}) : super(key: key);
-
-  final String title;
-
+  MyHomePage({Key? key}) : super(key: key);
   @override
   _MyHomePageState createState() => _MyHomePageState();
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  bool _offer = false;
-  RTCPeerConnection? _peerConnection;
-  MediaStream? _localStream;
-  RTCVideoRenderer _localRenderer = new RTCVideoRenderer();
-  RTCVideoRenderer _remoteRenderer = new RTCVideoRenderer();
-
-  final sdpController = TextEditingController();
+  Signaling signaling = Signaling();
+  RTCVideoRenderer _localRenderer = RTCVideoRenderer();
+  RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
+  String? roomId;
+  TextEditingController textEditingController = TextEditingController(text: '');
 
   @override
   dispose() {
     _localRenderer.dispose();
     _remoteRenderer.dispose();
-    sdpController.dispose();
     super.dispose();
   }
 
   @override
   void initState() {
-    initRenderer();
-    _createPeerConnecion().then((pc) {
-      _peerConnection = pc;
+    _localRenderer.initialize();
+    _remoteRenderer.initialize();
+    signaling.onAddRemoteStream = ((stream) {
+      _remoteRenderer.srcObject = stream;
+      setState(() {});
     });
-    // _getUserMedia();
     super.initState();
   }
-
-  initRenderer() async {
-    await _localRenderer.initialize();
-    await _remoteRenderer.initialize();
-  }
-
-  _createPeerConnecion() async {
-    Map<String, dynamic> configuration = {
-      "iceServers": [
-        {"url": "stun:stun.l.google.com:19302"},
-      ]
-    };
-
-    final Map<String, dynamic> offerSdpConstraints = {
-      "mandatory": {
-        "OfferToReceiveAudio": true,
-        "OfferToReceiveVideo": true,
-      },
-      "optional": [],
-    };
-
-    _localStream = await _getUserMedia();
-
-    RTCPeerConnection pc =
-        await createPeerConnection(configuration, offerSdpConstraints);
-
-    pc.addStream(_localStream!);
-
-    pc.onIceCandidate = (e) {
-      if (e.candidate != null) {
-        print(json.encode({
-          'candidate': e.candidate.toString(),
-          'sdpMid': e.sdpMid.toString(),
-          'sdpMLineIndex': e.sdpMLineIndex,
-        }));
-      }
-    };
-
-    pc.onIceConnectionState = (e) {
-      print(e);
-    };
-
-    pc.onAddStream = (stream) {
-      print('addStream: ' + stream.id);
-      _remoteRenderer.srcObject = stream;
-    };
-
-    return pc;
-  }
-
-  _getUserMedia() async {
-    final Map<String, dynamic> constraints = {
-      'audio': false,
-      'video': {
-        'facingMode': 'user',
-      },
-    };
-
-    MediaStream stream = await navigator.mediaDevices.getUserMedia(constraints);
-    _localRenderer.srcObject = stream;
-    return stream;
-  }
-
-  void _createOffer() async {
-    RTCSessionDescription description =
-        await _peerConnection!.createOffer({'offerToReceiveVideo': 1});
-    var session = parse(description.sdp.toString());
-    print(json.encode(session));
-    _offer = true;
-    _peerConnection!.setLocalDescription(description);
-  }
-
-  void _createAnswer() async {
-    RTCSessionDescription description =
-        await _peerConnection!.createAnswer({'offerToReceiveVideo': 1});
-
-    var session = parse(description.sdp.toString());
-    print(json.encode(session));
-    _peerConnection!.setLocalDescription(description);
-  }
-
-  void _setRemoteDescription() async {
-    String jsonString = sdpController.text;
-    dynamic session = await jsonDecode('$jsonString');
-
-    String sdp = write(session, null);
-    RTCSessionDescription description =
-        new RTCSessionDescription(sdp, _offer ? 'answer' : 'offer');
-    print(description.toMap());
-
-    await _peerConnection!.setRemoteDescription(description);
-  }
-
-  void _addCandidate() async {
-    String jsonString = sdpController.text;
-    dynamic session = await jsonDecode('$jsonString');
-    print(session['candidate']);
-    dynamic candidate = new RTCIceCandidate(
-        session['candidate'], session['sdpMid'], session['sdpMlineIndex']);
-    await _peerConnection!.addCandidate(candidate);
-  }
-
-  SizedBox videoRenderers() => SizedBox(
-      height: 210,
-      child: Row(children: [
-        Flexible(
-          child: new Container(
-              key: new Key("local"),
-              margin: new EdgeInsets.fromLTRB(5.0, 5.0, 5.0, 5.0),
-              decoration: new BoxDecoration(color: Colors.black),
-              child: new RTCVideoView(_localRenderer)),
-        ),
-        Flexible(
-          child: new Container(
-              key: new Key("remote"),
-              margin: new EdgeInsets.fromLTRB(5.0, 5.0, 5.0, 5.0),
-              decoration: new BoxDecoration(color: Colors.black),
-              child: new RTCVideoView(_remoteRenderer)),
-        )
-      ]));
-
-  Row offerAndAnswerButtons() =>
-      Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: <Widget>[
-        new ElevatedButton(
-          onPressed: _createOffer,
-          child: Text('Offer'),
-          // color: Colors.amber,
-        ),
-        ElevatedButton(
-          onPressed: _createAnswer,
-          child: Text('Answer'),
-          style: ElevatedButton.styleFrom(primary: Colors.amber),
-        ),
-      ]);
-
-  Row sdpCandidateButtons() =>
-      Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: <Widget>[
-        ElevatedButton(
-          onPressed: _setRemoteDescription,
-          child: Text('Set Remote Desc'),
-          // color: Colors.amber,
-        ),
-        ElevatedButton(
-          onPressed: _addCandidate,
-          child: Text('Add Candidate'),
-          // color: Colors.amber,
-        )
-      ]);
-
-  Padding sdpCandidatesTF() => Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: TextField(
-          controller: sdpController,
-          keyboardType: TextInputType.multiline,
-          maxLines: 4,
-          maxLength: TextField.noMaxLength,
-        ),
-      );
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
         appBar: AppBar(
-          title: Text(widget.title),
+          title: Text("Video Conference Demo"),
         ),
-        body: Container(
-            child: Container(
-                child: Column(
+        body: Column(
           children: [
-            videoRenderers(),
-            offerAndAnswerButtons(),
-            sdpCandidatesTF(),
-            sdpCandidateButtons(),
+            SizedBox(
+              height: 8,
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton(
+                    onPressed: () {
+                      signaling.openUserMedia(_localRenderer, _remoteRenderer);
+                    },
+                    child: Text("Allow camera and microphone")),
+                SizedBox(
+                  width: 8,
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    roomId = await signaling.createRoom(_remoteRenderer);
+                    textEditingController.text = roomId!;
+                    setState(() {});
+                  },
+                  child: Text("Create room"),
+                ),
+                SizedBox(
+                  width: 8,
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    signaling.joinRoom(
+                        textEditingController.text, _remoteRenderer);
+                  },
+                  child: Text('Join room'),
+                ),
+                SizedBox(
+                  width: 8,
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    signaling.hangUp(_localRenderer);
+                  },
+                  child: Text("Hangup"),
+                )
+              ],
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Expanded(
+                        child: Container(
+                      color: Colors.teal[100],
+                      child: RTCVideoView(_localRenderer, mirror: true),
+                    )),
+                    Expanded(
+                        child: Container(
+                            color: Colors.green[300],
+                            child: RTCVideoView(_remoteRenderer))),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text("Join the following Room: "),
+                  Flexible(
+                    child: TextFormField(
+                      controller: textEditingController,
+                    ),
+                  )
+                ],
+              ),
+            ),
           ],
-        ))));
+        ));
   }
 }
