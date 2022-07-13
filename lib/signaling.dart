@@ -15,7 +15,7 @@ class Signaling {
   RTCPeerConnection? peerConnection;
   MediaStream? localStream;
   MediaStream? remoteStream;
-  late String roomId;
+  String roomId = '';
   String? currentRoomText;
   StreamStateCallback? onAddRemoteStream;
   Future<String> createRoom(RTCVideoRenderer remoteRenderer) async {
@@ -23,7 +23,7 @@ class Signaling {
     DocumentReference roomRef = db.collection('room').doc();
     print('Create PeerConnection with configuration: $configuration');
     peerConnection = await createPeerConnection(configuration);
-    //registerPeerConnectionListeners();
+    registerPeerConnectionListeners();
 
     localStream?.getTracks().forEach((track) {
       peerConnection?.addTrack(track, localStream!);
@@ -159,13 +159,17 @@ class Signaling {
       remoteStream!.getTracks().forEach((track) => track.stop());
     }
     if (peerConnection != null) peerConnection!.close();
-    if (roomId != null) {
-      var db = FirebaseFirestore.instance;
-      var roomRef = db.collection('rooms').doc(roomId);
-      var calleeCandidates = await roomRef.collection('calleeCandidates').get();
-      calleeCandidates.docs.forEach((document) => document.reference.delete());
-      await roomRef.delete();
-    }
+    //if (roomId != null) {
+    print(roomId);
+    var db = FirebaseFirestore.instance;
+    db.collection('room').doc(roomId).delete();
+    // var callerCandidates = await roomRef.collection('callerCandidates').get();
+    // var calleeCandidates = await roomRef.collection('calleeCandidates').get();
+    // callerCandidates.docs.forEach((document) => document.reference.delete());
+    // calleeCandidates.docs.forEach((document) => document.reference.delete());
+    // roomRef.delete().then((value) => print(value));
+    //print('Room deleted');
+    //}
     localStream!.dispose();
     remoteStream?.dispose();
   }
