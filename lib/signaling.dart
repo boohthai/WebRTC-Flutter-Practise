@@ -163,13 +163,6 @@ class Signaling {
     print(roomId);
     var db = FirebaseFirestore.instance;
     db.collection('room').doc(roomId).delete();
-    // var callerCandidates = await roomRef.collection('callerCandidates').get();
-    // var calleeCandidates = await roomRef.collection('calleeCandidates').get();
-    // callerCandidates.docs.forEach((document) => document.reference.delete());
-    // calleeCandidates.docs.forEach((document) => document.reference.delete());
-    // roomRef.delete().then((value) => print(value));
-    //print('Room deleted');
-    //}
     localStream!.dispose();
     remoteStream?.dispose();
   }
